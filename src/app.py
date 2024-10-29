@@ -8,7 +8,7 @@ from flask_swagger import swagger # type: ignore
 from flask_cors import CORS # type: ignore
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User, Planet, Character, Vehicle
+from models import db, User, Planet, Character, Vehicle, Favorite_Planet, Favorite_Character, Favorite_Vehicle
 
 
 
@@ -203,6 +203,146 @@ def delete_vehicle(id):
     db.session.delete(vehicle)
     db.session.commit()
     return jsonify(vehicle.serialize()), 200
+
+
+####################################
+# GET Favorites
+####################################
+
+@app.route('/favorites/user/<int:user_id>', methods=['GET'])
+def get_all_favorites(user_id):
+    user = User.query.get(user_id)
+    if user is None:
+        raise APIException("User not found", status_code=404)    
+    
+    return jsonify(user.serialize_favorites()), 200
+
+####################################
+# CRUD for Favorite_Planet
+####################################
+
+@app.route('/favorite/user/<int:user_id>/planet/<int:planet_id>', methods=['POST'])
+def create_favorite_planet(user_id, planet_id):
+    # Verifica si los campos requeridos fueron proporcionados
+    if user_id is None or planet_id is None:
+        raise APIException("You need to specify the user_id and planet_id", status_code=400)
+
+    # Verifica si el usuario y el planeta existen
+    user = User.query.get(user_id)
+    planet = Planet.query.get(planet_id)
+
+    if user is None or planet is None:
+        raise APIException("User or planet not found", status_code=404)
+
+    # Verifica si el favorito ya existe
+    existing_favorite_planet = Favorite_Planet.query.filter_by(user_id=user_id, planet_id=planet_id).first()
+    
+    if existing_favorite_planet:
+        raise APIException("Favorite already exists", status_code=400)
+
+    # Crea un nuevo favorito si no existe
+    favorite_planet = Favorite_Planet(user_id=user_id, planet_id=planet_id)
+    
+    db.session.add(favorite_planet)
+    db.session.commit()
+
+    return jsonify(favorite_planet.serialize()), 200
+
+
+@app.route('/favorite/user/<int:user_id>/planet/<int:planet_id>', methods=['DELETE'])
+def delete_favorite_planet(user_id, planet_id):
+    favorite_planet = Favorite_Planet.query.filter_by(user_id=user_id, planet_id=planet_id).first()
+    if favorite_planet is None:
+        raise APIException("Favorite_planet not found", status_code=404)
+    
+    db.session.delete(favorite_planet)
+    db.session.commit()
+    return jsonify({"message": "Favorite vehicle deleted"}), 200
+
+####################################
+# CRUD for Favorite_Character
+####################################
+
+@app.route('/favorite/user/<int:user_id>/character/<int:character_id>', methods=['POST'])
+def create_favorite_character(user_id, character_id):
+    
+    if user_id is None or character_id is None:
+        raise APIException("You need to specify the user_id and character_id", status_code=400)
+    
+    user = User.query.get(user_id)
+    character = Character.query.get(character_id)
+
+    if user is None or character is None:
+        raise APIException("User or character not found", status_code=404)
+
+    existing_favorite_character = Favorite_Character.query.filter_by(user_id=user_id, character_id=character_id).first()
+
+    if existing_favorite_character:
+        raise APIException("Favorite already exists", status_code=400)
+
+    favorite_character = Favorite_Character(user_id=user_id, character_id=character_id)    
+    
+    db.session.add(favorite_character)
+    db.session.commit()
+    return jsonify(favorite_character.serialize()), 200
+
+@app.route('/favorite/user/<int:user_id>/character/<int:character_id>', methods=['DELETE'])
+def delete_favorite_character(user_id, character_id):
+    favorite_character = Favorite_Character.query.filter_by(user_id=user_id, character_id=character_id).first()
+    if favorite_character is None:
+        raise APIException("Favorite_character not found", status_code=404)
+    db.session.delete(favorite_character)
+    db.session.commit()
+    return jsonify({"message": "Favorite vehicle deleted"}), 200
+
+    
+####################################
+# CRUD for Favorite_Vehicle
+####################################
+
+
+@app.route('/favorite/user/<int:user_id>/vehicle/<int:vehicle_id>', methods=['POST'])
+def create_favorite_vehicle(user_id, vehicle_id):
+    
+    if user_id is None or vehicle_id is None:
+        raise APIException("You need to specify the user_id and vehicle_id", status_code=400)
+    
+    user = User.query.get(user_id)
+    vehicle = Vehicle.query.get(vehicle_id)
+
+    if user is None or vehicle is None:
+        raise APIException("User or Vehicle not found", status_code=404)
+
+    existing_favorite_vehicle = Favorite_Vehicle.query.filter_by(user_id=user_id, vehicle_id=vehicle_id).first()
+    if existing_favorite_vehicle:
+        raise APIException("Favorite already exists", status_code=400)
+
+    favorite_vehicle = Favorite_Vehicle(user_id=user_id, vehicle_id=vehicle_id)    
+    
+    db.session.add(favorite_vehicle)
+    db.session.commit()
+    return jsonify(favorite_vehicle.serialize()), 200
+
+@app.route('/favorite/user/<int:user_id>/vehicle/<int:vehicle_id>', methods=['DELETE'])
+def delete_favorite_vehicle(user_id, vehicle_id):
+    try:
+        # Buscar la relación Favorite_Vehicle con la sesión activa
+        favorite_vehicle = Favorite_Vehicle.query.filter_by(user_id=user_id, vehicle_id=vehicle_id).one_or_none()
+
+        if favorite_vehicle is None:
+            raise APIException("Favorite_Vehicle not found", status_code=404)        
+        db.session.delete(favorite_vehicle)
+        db.session.commit()
+
+        return jsonify({"message": "Favorite vehicle deleted"}), 200
+
+    except APIException as e:
+        return jsonify({"message": e.message}), e.status_code
+
+    except Exception as e:
+        db.session.rollback()  # Hacer rollback en caso de error
+        return jsonify({"message": "Internal server error"}), 500
+
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
